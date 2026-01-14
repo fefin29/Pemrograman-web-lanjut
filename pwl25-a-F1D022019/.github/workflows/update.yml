@@ -1,0 +1,54 @@
+name: Generate and Commit Markdown Reports
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 * * * *"  # Runs every hour
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  generate-markdown:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # Fetch all branches and history
+          persist-credentials: true
+
+      - name: Mark workspace as safe (self-hosted)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set Up Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+      - name: Run Markdown Generation Script
+        run: |
+          chmod +x update.sh
+          ./update.sh
+
+      - name: Check for Changes
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            echo "NO_CHANGES=true" >> $GITHUB_ENV
+          else
+            echo "Changes detected. Preparing to commit."
+            echo "NO_CHANGES=false" >> $GITHUB_ENV
+          fi
+
+      - name: Commit and Push Changes
+        if: env.NO_CHANGES == 'false'
+        run: |
+          git commit -m "Auto-update Markdown reports"
+          git push origin HEAD:main
